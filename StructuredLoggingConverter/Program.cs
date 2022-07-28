@@ -145,9 +145,15 @@ namespace StructuredLoggingConverter
             Dictionary<string, string> argumentByNameDictionary = new();
             foreach (string interpolatedArgument in interpolatedArguments)
             {
-                string defaultArgumentName = interpolatedArgument.Replace('.', '_');
+                string defaultArgumentName = interpolatedArgument
+                    .CapitalizeFirst()
+                    .CapitalizeAfter(new char[] { '.' })
+                    .Replace("?", string.Empty)
+                    .Replace(".", string.Empty)
+                    .Trim();
+
                 string nameForArgument = ConsoleExtensions.ReadLineWithDefault($"Name for argument {interpolatedArgument}: ", defaultArgumentName);
-                argumentByNameDictionary.Add(interpolatedArgument,nameForArgument);
+                argumentByNameDictionary.Add(interpolatedArgument, nameForArgument);
             }
 
             return argumentByNameDictionary;
