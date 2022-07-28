@@ -1,4 +1,5 @@
 ﻿using Krip.Logging.Extensions;
+using StructuredLoggingConverter.Extensions;
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -8,11 +9,13 @@ namespace StructuredLoggingConverter
     public class Program
     {
         private static readonly string _projectPath = @"C:\Work\Repos\PrinterCore\";
-        private static readonly string _interpolatedLogLinePattern = ".*Log(Debug|Error|Information|Trace|Warning|Critical)\\(.*\\$\".*\\{.*\\}.*\".*";
 
         public static async Task Main()
         {
+            Console.WriteLine($"Process started");
+            Console.WriteLine("Getting files...");
             IEnumerable<string> csFiles = GetCsFiles();
+            Console.WriteLine("Loading files into memory...");
             IEnumerable<InMemoryFile> files = await LoadFilesIntoMemory(csFiles);
             foreach (InMemoryFile file in files)
             {
@@ -42,11 +45,20 @@ namespace StructuredLoggingConverter
             IEnumerable<string> interpolatedLogInstructions = GetLogInstructions(file)
                 .Where(x => IsInterpolatedLogInstruction(x));
 
+            if (interpolatedLogInstructions.Any())
+            {
+                Console.Clear();
+                Console.WriteLine($"Processing {file.FilePath}");
+            }
+
             string newFileContent = file.Content;
             foreach (string interpolatedLogInstruction in interpolatedLogInstructions)
             {
                 IEnumerable<string> interpolatedArguments = GetInterpolatedArguments(interpolatedLogInstruction);
-                string updatedLogInstruction = InsertArgumentsIntoLogInstruction(interpolatedLogInstruction, interpolatedArguments);
+                Dictionary<string, string> nameByArgumentDictionary = ReadArgumentsNames(interpolatedLogInstruction, interpolatedArguments);
+
+                string updatedLogInstruction = ReplaceArgumentsNames(interpolatedLogInstruction, nameByArgumentDictionary);
+                updatedLogInstruction = InsertArgumentsIntoLogInstruction(updatedLogInstruction, interpolatedArguments);
                 updatedLogInstruction = RemoveAllOccurencesOfInterpolationCharacter(updatedLogInstruction);
                 newFileContent = newFileContent.Replace(interpolatedLogInstruction, updatedLogInstruction);
             }
@@ -126,6 +138,31 @@ namespace StructuredLoggingConverter
                 .DistinctOrdered();
         }
 
+        private static Dictionary<string, string> ReadArgumentsNames(string logInstruction, IEnumerable<string> interpolatedArguments)
+        {
+            Console.WriteLine();
+            Console.WriteLine(logInstruction.Trim());
+            Dictionary<string, string> argumentByNameDictionary = new();
+            foreach (string interpolatedArgument in interpolatedArguments)
+            {
+                string defaultArgumentName = interpolatedArgument.Replace('.', '_');
+                string nameForArgument = ConsoleExtensions.ReadLineWithDefault($"Name for argument {interpolatedArgument}: ", defaultArgumentName);
+                argumentByNameDictionary.Add(interpolatedArgument,nameForArgument);
+            }
+
+            return argumentByNameDictionary;
+        }
+
+        private static string ReplaceArgumentsNames(string logInstruction, Dictionary<string, string> nameByArgumentDictionary)
+        {
+            string updatedLogInstruction = logInstruction;
+            foreach (var nameByArgument in nameByArgumentDictionary)
+            {
+                updatedLogInstruction = updatedLogInstruction.Replace($"{{{nameByArgument.Key}}}", $"{{{nameByArgument.Value}}}");
+            }
+            return updatedLogInstruction;
+        }
+
         private static string InsertArgumentsIntoLogInstruction(string logInstruction, IEnumerable<string> interpolatedArguments)
         {
             if (!interpolatedArguments.Any())
@@ -142,7 +179,5 @@ namespace StructuredLoggingConverter
         {
             return logInstruction.Replace("$", string.Empty);
         }
-
-
     }
 }
