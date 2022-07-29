@@ -1,8 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Text;
+using System.Text.RegularExpressions;
 
 namespace StructuredLoggingConverter.Extensions
 {
@@ -35,5 +32,43 @@ namespace StructuredLoggingConverter.Extensions
             }
             return sb.ToString();
         }
+
+        public static string TrimStart(this string target, string trimString)
+        {
+            if (string.IsNullOrEmpty(trimString)) return target;
+
+            string result = target;
+            while (result.StartsWith(trimString))
+            {
+                result = result.Substring(trimString.Length);
+            }
+
+            return result;
+        }
+
+        public static string[] SplitByUpperCase(this string str)
+        {
+            return Regex.Split(str, @"(?<!^)(?=[A-Z])");
+        }
+
+        public static IEnumerable<string> RemoveFollowingDuplicates(this IEnumerable<string> stringEnumerable)
+        {
+            List<string> result = new List<string>();
+            foreach (var str in stringEnumerable)
+            {
+                if (result.LastOrDefault() != str)
+                {
+                    result.Add(str);
+                }
+            }
+            return result;
+        }
+
+        public static string Concat(this IEnumerable<string> stringEnumerable)
+        {
+            return string.Concat(stringEnumerable);
+        }
+
+
     }
 }

@@ -146,13 +146,19 @@ namespace StructuredLoggingConverter
             foreach (string interpolatedArgument in interpolatedArguments)
             {
                 string defaultArgumentName = interpolatedArgument
+                    .Trim()
+                    .Trim('_')
                     .CapitalizeFirst()
                     .CapitalizeAfter(new char[] { '.' })
                     .Replace("?", string.Empty)
                     .Replace(".", string.Empty)
-                    .Trim();
+                    .TrimStart("Request")
+                    .Trim()
+                    .SplitByUpperCase()
+                    .RemoveFollowingDuplicates()
+                    .Concat();
 
-                string nameForArgument = ConsoleExtensions.ReadLineWithDefault($"Name for argument {interpolatedArgument}: ", defaultArgumentName);
+                string nameForArgument = ConsoleExtensions.ReadLineWithDefault($"[{interpolatedArgument}]: ", defaultArgumentName);
                 argumentByNameDictionary.Add(interpolatedArgument, nameForArgument);
             }
 
