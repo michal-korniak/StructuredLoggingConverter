@@ -9,6 +9,7 @@ namespace StructuredLoggingConverter
     public class Program
     {
         private static readonly string _projectPath = @"C:\Work\Repos\PrinterCore\";
+        private static readonly bool _useDefaultArguments = false;
 
         public static async Task Main()
         {
@@ -58,14 +59,15 @@ namespace StructuredLoggingConverter
                 Dictionary<string, string> nameByArgumentDictionary = ReadArgumentsNames(interpolatedLogInstruction, interpolatedArguments);
 
                 string updatedLogInstruction = ReplaceArgumentsNames(interpolatedLogInstruction, nameByArgumentDictionary);
-                updatedLogInstruction = InsertArgumentsIntoLogInstruction(updatedLogInstruction, interpolatedArguments);
+                updatedLogInstruction = InsertArgumentsIntoLogInstruction(updatedLogInstruction, interpolatedArguments, nameByArgumentDictionary);
                 updatedLogInstruction = RemoveAllOccurencesOfInterpolationCharacter(updatedLogInstruction);
+
                 newFileContent = newFileContent.Replace(interpolatedLogInstruction, updatedLogInstruction);
             }
 
             if (newFileContent != file.Content)
             {
-                await File.WriteAllTextAsync(file.FilePath, newFileContent);
+                await File.WriteAllTextAsync(file.FilePath + ".updated.cs", newFileContent);
             }
         }
 
@@ -77,8 +79,8 @@ namespace StructuredLoggingConverter
             foreach (Match logInstructionWithoutCurlyBracketedContentMatch in logInstructionWithoutCurlyBracketedContentRegex.Matches(file.Content))
             {
                 int indexOflastCharacter = logInstructionWithoutCurlyBracketedContentMatch.Index + logInstructionWithoutCurlyBracketedContentMatch.Length;
-                string curlyBracketedContent = GetContentOfNextCurlyBracketsBlock(file.Content, indexOflastCharacter);
-                string fullLogInstruction = logInstructionWithoutCurlyBracketedContentMatch.Value + curlyBracketedContent;
+                string roundBracketedContent = GetContentOfNextRoundBracketsBlock(file.Content, indexOflastCharacter);
+                string fullLogInstruction = logInstructionWithoutCurlyBracketedContentMatch.Value + roundBracketedContent;
 
                 logInstructions.Add(fullLogInstruction);
             }
@@ -86,7 +88,7 @@ namespace StructuredLoggingConverter
             return logInstructions;
         }
 
-        private static string GetContentOfNextCurlyBracketsBlock(string content, int startIndex)
+        private static string GetContentOfNextRoundBracketsBlock(string content, int startIndex)
         {
             char startCharacter = '(';
             char endCharacter = ')';
@@ -158,7 +160,12 @@ namespace StructuredLoggingConverter
                     .RemoveFollowingDuplicates()
                     .Concat();
 
-                string nameForArgument = ConsoleExtensions.ReadLineWithDefault($"[{interpolatedArgument}]: ", defaultArgumentName);
+                string nameForArgument = defaultArgumentName;
+                if (!_useDefaultArguments)
+                {
+                    nameForArgument = ConsoleExtensions.ReadLineWithDefault($"[{interpolatedArgument}]: ", defaultArgumentName);
+                }
+
                 argumentByNameDictionary.Add(interpolatedArgument, nameForArgument);
             }
 
@@ -175,15 +182,19 @@ namespace StructuredLoggingConverter
             return updatedLogInstruction;
         }
 
-        private static string InsertArgumentsIntoLogInstruction(string logInstruction, IEnumerable<string> interpolatedArguments)
+        private static string InsertArgumentsIntoLogInstruction(string logInstruction, IEnumerable<string> interpolatedArguments, Dictionary<string, string> nameByArgumentDictionary)
         {
             if (!interpolatedArguments.Any())
             {
                 return logInstruction;
             }
 
+            string indentation = logInstruction[..logInstruction.IndexOfNonWhitespace()];
+            string separator = $",{Environment.NewLine}{indentation}\t";
+
             int indexOfEndBracket = logInstruction.LastIndexOf(")");
-            string updatedLogInstruction = logInstruction.Insert(indexOfEndBracket, ", " + string.Join(", ", interpolatedArguments));
+            string updatedLogInstruction = logInstruction.Insert(indexOfEndBracket, separator + string.Join(separator,
+                interpolatedArguments.Select(argument => $"new {{ {nameByArgumentDictionary[argument]} = {argument} }}")));
             return updatedLogInstruction;
         }
 
