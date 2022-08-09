@@ -8,8 +8,9 @@ namespace StructuredLoggingConverter
 
     public class Program
     {
-        private static readonly string _projectPath = @"C:\Work\Repos\PrinterCore\";
-        private static readonly bool _useDefaultArguments = false;
+        private static readonly string _projectPath = @"C:\Users\michalkor\Desktop\New folder";
+        private static readonly bool _useDefaultArguments = true;
+        private static bool _createNewFileInsteadOfReplacingExistingOne = false;
 
         public static async Task Main()
         {
@@ -55,11 +56,14 @@ namespace StructuredLoggingConverter
             string newFileContent = file.Content;
             foreach (string interpolatedLogInstruction in interpolatedLogInstructions)
             {
+                string updatedLogInstruction = interpolatedLogInstruction;
                 IEnumerable<string> interpolatedArguments = GetInterpolatedArguments(interpolatedLogInstruction);
-                Dictionary<string, string> nameByArgumentDictionary = ReadArgumentsNames(interpolatedLogInstruction, interpolatedArguments);
-
-                string updatedLogInstruction = ReplaceArgumentsNames(interpolatedLogInstruction, nameByArgumentDictionary);
-                updatedLogInstruction = InsertArgumentsIntoLogInstruction(updatedLogInstruction, interpolatedArguments, nameByArgumentDictionary);
+                if (interpolatedArguments.Any())
+                {
+                    Dictionary<string, string> nameByArgumentDictionary = ReadArgumentsNames(updatedLogInstruction, interpolatedArguments);
+                    updatedLogInstruction = ReplaceArgumentsNames(interpolatedLogInstruction, nameByArgumentDictionary);
+                    updatedLogInstruction = InsertArgumentsIntoLogInstruction(updatedLogInstruction, interpolatedArguments, nameByArgumentDictionary);
+                }
                 updatedLogInstruction = RemoveAllOccurencesOfInterpolationCharacter(updatedLogInstruction);
 
                 newFileContent = newFileContent.Replace(interpolatedLogInstruction, updatedLogInstruction);
@@ -67,7 +71,14 @@ namespace StructuredLoggingConverter
 
             if (newFileContent != file.Content)
             {
-                await File.WriteAllTextAsync(file.FilePath + ".updated.cs", newFileContent);
+                if (_createNewFileInsteadOfReplacingExistingOne)
+                {
+                    await File.WriteAllTextAsync(file.FilePath + ".updated.cs", newFileContent);
+                }
+                else
+                {
+                    await File.WriteAllTextAsync(file.FilePath, newFileContent);
+                }
             }
         }
 
@@ -147,29 +158,46 @@ namespace StructuredLoggingConverter
             Dictionary<string, string> argumentByNameDictionary = new();
             foreach (string interpolatedArgument in interpolatedArguments)
             {
-                string defaultArgumentName = interpolatedArgument
-                    .Trim()
-                    .Trim('_')
-                    .CapitalizeFirst()
-                    .CapitalizeAfter(new char[] { '.' })
-                    .Replace("?", string.Empty)
-                    .Replace(".", string.Empty)
-                    .TrimStart("Request")
-                    .Trim()
-                    .SplitByUpperCase()
-                    .RemoveFollowingDuplicates()
-                    .Concat();
-
-                string nameForArgument = defaultArgumentName;
-                if (!_useDefaultArguments)
-                {
-                    nameForArgument = ConsoleExtensions.ReadLineWithDefault($"[{interpolatedArgument}]: ", defaultArgumentName);
-                }
-
+                string nameForArgument = ReadArgumentName(interpolatedArgument);
                 argumentByNameDictionary.Add(interpolatedArgument, nameForArgument);
             }
 
             return argumentByNameDictionary;
+        }
+
+        private static string ReadArgumentName(string argumentValue)
+        {
+            string defaultArgumentName = argumentValue
+                                .Trim()
+                                .Trim('_')
+                                .CapitalizeFirst()
+                                .CapitalizeAfter(new char[] { '.' })
+                                .Replace("?", string.Empty)
+                                .Replace(".", string.Empty)
+                                .TrimStart("Request")
+                                .Trim()
+                                .SplitByUpperCase()
+                                .RemoveFollowingDuplicates()
+                                .Concat();
+
+            string nameForArgument = defaultArgumentName;
+            if (!_useDefaultArguments)
+            {
+                bool isValidName = false;
+                Regex validNameRegex = new Regex("^[A-Za-z0-9_]*$");
+                do
+                {
+                    nameForArgument = ConsoleExtensions.ReadLineWithDefault($"[{argumentValue}]: ", defaultArgumentName);
+                    isValidName = !string.IsNullOrWhiteSpace(nameForArgument) && validNameRegex.IsMatch(nameForArgument);
+                    if (!isValidName)
+                    {
+                        Console.WriteLine("Entered name is invalid.");
+                    }
+                }
+                while (!isValidName);
+            }
+
+            return nameForArgument;
         }
 
         private static string ReplaceArgumentsNames(string logInstruction, Dictionary<string, string> nameByArgumentDictionary)
