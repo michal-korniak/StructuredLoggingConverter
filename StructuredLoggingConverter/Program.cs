@@ -9,7 +9,7 @@ namespace StructuredLoggingConverter
     public class Program
     {
         private static readonly string _projectPath = @"C:\Users\michalkor\Desktop\New folder";
-        private static readonly bool _useDefaultArguments = true;
+        private static readonly bool _useDefaultArguments = false;
         private static bool _createNewFileInsteadOfReplacingExistingOne = false;
 
         public static async Task Main()
