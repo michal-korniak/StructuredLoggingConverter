@@ -1,4 +1,5 @@
-﻿using Krip.Logging.Extensions;
+﻿using CommandLine;
+using Krip.Logging.Extensions;
 using StructuredLoggingConverter.Extensions;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -8,26 +9,28 @@ namespace StructuredLoggingConverter
 
     public class Program
     {
-        private static readonly string _projectPath = @"C:\Users\michalkor\Desktop\New folder";
-        private static readonly bool _useDefaultArguments = false;
-        private static bool _createNewFileInsteadOfReplacingExistingOne = false;
+        private static Options _options;
 
-        public static async Task Main()
+        public static async Task Main(string[] args)
         {
-            Console.WriteLine($"Process started");
-            Console.WriteLine("Getting files...");
-            IEnumerable<string> csFiles = GetCsFiles();
-            Console.WriteLine("Loading files into memory...");
-            IEnumerable<InMemoryFile> files = await LoadFilesIntoMemory(csFiles);
-            foreach (InMemoryFile file in files)
+            await Parser.Default.ParseArguments<Options>(args).WithParsedAsync(async (options) =>
             {
-                await ProcessFile(file);
-            }
+                _options = options;
+                Console.WriteLine($"Process started");
+                Console.WriteLine("Getting files...");
+                IEnumerable<string> csFiles = GetCsFiles();
+                Console.WriteLine("Loading files into memory...");
+                IEnumerable<InMemoryFile> files = await LoadFilesIntoMemory(csFiles);
+                foreach (InMemoryFile file in files)
+                {
+                    await ProcessFile(file);
+                }
+            });
         }
 
         private static IEnumerable<string> GetCsFiles()
         {
-            IEnumerable<string> csFiles = Directory.GetFiles(_projectPath, "*.cs", new EnumerationOptions()
+            IEnumerable<string> csFiles = Directory.GetFiles(_options.Path, "*.cs", new EnumerationOptions()
             {
                 RecurseSubdirectories = true
             });
@@ -71,7 +74,7 @@ namespace StructuredLoggingConverter
 
             if (newFileContent != file.Content)
             {
-                if (_createNewFileInsteadOfReplacingExistingOne)
+                if (_options.GenerateNewFiles)
                 {
                     await File.WriteAllTextAsync(file.FilePath + ".updated.cs", newFileContent);
                 }
@@ -181,9 +184,9 @@ namespace StructuredLoggingConverter
                                 .Concat();
 
             string nameForArgument = defaultArgumentName;
-            if (!_useDefaultArguments)
+            if (!_options.UseDefaultNames)
             {
-                bool isValidName = false;
+                bool isValidName;
                 Regex validNameRegex = new Regex("^[A-Za-z0-9_]*$");
                 do
                 {
